@@ -5,8 +5,13 @@ Framework-independent HideGuard client, Ed25519 collect verifier, access lifecyc
 ## Installation
 
 ```sh
-npm install @hachitechs/hideguard
+npm install github:namtb1994/hideguard_npm_package
 ```
+
+GitHub installation uses this repository directly and does not require an npm registry release or ownership of the `@hachitechs` npm scope. If the repository is private, the installing account needs GitHub access.
+npm installs the build dependencies and runs `prepare` to generate the JavaScript and TypeScript declarations before installing the package. Git installations require Git, a Node version supported by the locked development dependencies (verified with Node 22.23.4), and npm lifecycle scripts enabled.
+
+For a fixed revision, append `#<commit-sha>` to the GitHub dependency. The installed package name remains `@hachitechs/hideguard`.
 
 Use `@hachitechs/hideguard` on the server and `@hachitechs/hideguard/browser` for browser integrations.
 The package is ESM-only; use `import` or dynamic `import()`.
@@ -212,4 +217,20 @@ npm pack
 
 Build and test in this repository, then distribute the versioned npm package or tarball to each host application. Existing applications may keep a vendored workspace copy such as `file:packages/hachitechs-hideguard`; those copies do not update automatically. Avoid absolute external paths as production/build dependencies. A Shopify Node backend can supply its own store, authenticated identity, resource ownership and HTTP adapters. Shopify Functions remain a separate runtime and cannot directly execute this backend package.
 
-`npm pack` builds the package through `prepack`. Publishing also runs the unit and native SQLite integration tests through `prepublishOnly`; development and release checks require a Node version supported by the locked development dependencies (verified with Node 22.23.4).
+`npm install`, `npm ci`, Git dependency installation and `npm pack` build the package through `prepare`. Registry publishing also runs the unit and native SQLite integration tests through `prepublishOnly`; development and release checks require a Node version supported by the locked development dependencies (verified with Node 22.23.4).
+
+## Optional npm registry publishing
+
+GitHub installation works independently of npm registry publishing. The package is also configured for future public releases on `https://registry.npmjs.org/`.
+The publishing account must have access to the `@hachitechs` npm scope, and each release must use a version not already published.
+
+```sh
+npm publish --dry-run
+npm publish
+```
+
+The dry run validates the local release process without uploading a release; npm authentication and scope permissions must be checked separately.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
