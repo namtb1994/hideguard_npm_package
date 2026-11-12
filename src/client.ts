@@ -1,12 +1,12 @@
 import { GuardError, requireString } from './errors.js';
 import {requestJson, type HttpTransport} from './http.js';
-import { normalizeEndpointUrl } from './policy.js';
+import { API_BASE_URL, normalizeEndpointUrl } from './policy.js';
 import { recordKey } from './store.js';
 import type { SharedCircuitBreaker } from './circuit-breaker.js';
 export type {HttpTransport} from './http.js';
 
 export interface VerdictClientOptions {
-  baseUrl: string;
+  baseUrl?: string;
   apiKey: string;
   timeoutMs?: number;
   maximumResponseBytes?: number;
@@ -23,7 +23,7 @@ export class VerdictClient {
   private readonly circuitBreaker: SharedCircuitBreaker | undefined;
 
   constructor(options: VerdictClientOptions) {
-    this.url = `${normalizeEndpointUrl(options.baseUrl)}/api/v1/verdict`;
+    this.url = `${normalizeEndpointUrl(options.baseUrl ?? API_BASE_URL)}/api/v1/verdict`;
     if (!options.apiKey || /[\s\x00-\x1f\x7f]/.test(options.apiKey)) {
       throw new GuardError('configuration', 'API key must be non-empty without whitespace.');
     }

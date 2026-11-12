@@ -2,13 +2,16 @@ import { GuardError } from './errors.js';
 
 export const ENVIRONMENTS = ['development', 'staging', 'production'] as const;
 export type Environment = typeof ENVIRONMENTS[number];
-export const TEST_HIDEGUARD_URL = 'https://dev.hideguard.io';
-export const DEFAULT_HIDEGUARD_URL = 'https://hideguard.io';
+import { API_BASE_URL } from './api-url.js';
+export { API_BASE_URL };
+export const DEFAULT_HIDEGUARD_URL = API_BASE_URL;
+/** @deprecated Use API_BASE_URL. Kept for existing adapters. */
+export const TEST_HIDEGUARD_URL = API_BASE_URL;
 
-/** Defaults only: legacy staging and explicit HTTPS overrides remain available to adapters. */
-export function defaultEndpointUrl(environment: string): string {
+/** Legacy environment arguments remain accepted; the default origin is deployment configuration. */
+export function defaultEndpointUrl(environment: string = 'production'): string {
   if (!ENVIRONMENTS.some((known) => known === environment)) throw new GuardError('configuration', 'HideGuard environment is invalid.');
-  return environment === 'production' ? DEFAULT_HIDEGUARD_URL : TEST_HIDEGUARD_URL;
+  return API_BASE_URL;
 }
 export const RECHECK_SECONDS = [0, 60, 120, 300, 900, 3600] as const;
 export const BLOCK_SECONDS = [900, 3600, 21600, 86400] as const;

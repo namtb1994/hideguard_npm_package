@@ -16,7 +16,8 @@
     "rootDir": "src",
     "skipLibCheck": true,
     "types": [],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noEmitOnError": true
   },
   "include": [
     "src/**/*.ts"

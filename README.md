@@ -46,11 +46,15 @@ No verdict cache, automatic HTTP retry, session capacity gate or new replay prot
 ## Mode defaults (since 0.7.0)
 
 `defaultEndpointUrl(environment)` is exported from both root and browser entries.
-It returns `https://dev.hideguard.io` for `development` (display label Testing) and legacy
-`staging`, and `https://hideguard.io` for `production`; unknown modes throw.
-This helper does not rewrite configuration or credentials. Explicit HTTPS origins and
-legacy staging signature verification remain supported by this framework-independent package.
-The Shopify adapter restricts new settings to Testing/Production and their fixed hosts.
+All supported legacy environment arguments now return the deployment API origin. The default is `https://hideguard.io`. The source constant is `API_BASE_URL` in `src/api-url.ts`, exported from both root and browser entry points. Clients use it when `baseUrl` is omitted; explicit HTTPS `baseUrl` overrides remain supported.
+
+From the origin source checkout, configure a test API and rebuild with:
+
+```sh
+npm run config -- --url-api https://api-testing.example
+```
+
+Restore the production default with `npm run config -- --url-api https://hideguard.io`. This command changes the package source constant and builds the artifact. Application adapters may instead pass their own deployment URL, without changing the installed package. Environment values inside signed responses remain protocol fields and must still match the expected signing context.
 
 ## Public verdict API (0.5.0)
 

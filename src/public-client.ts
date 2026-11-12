@@ -1,6 +1,6 @@
 import {isRecord} from './errors.js';
 import {requestJson, validateHttpOptions, type HttpOptions, type HttpTransport} from './http.js';
-import {normalizeEndpointUrl} from './policy.js';
+import {API_BASE_URL, normalizeEndpointUrl} from './policy.js';
 import {protocolToken, verifySignedResponse, type SignatureOptions, type SignedVerdict} from './signed-response.js';
 
 export interface PublicVerificationEvent {
@@ -15,7 +15,7 @@ export interface PublicVerificationEvent {
   error?: string;
 }
 export interface PublicVerdictClientOptions {
-  baseUrl: string;
+  baseUrl?: string;
   publicKey: string;
   timeoutMs?: number;
   maximumResponseBytes?: number;
@@ -49,7 +49,7 @@ export class PublicVerdictClient {
   private readonly onVerification: PublicVerdictClientOptions['onVerification'];
 
   constructor(options: PublicVerdictClientOptions) {
-    this.url = `${normalizeEndpointUrl(options.baseUrl)}/api/v1/verdict-public`;
+    this.url = `${normalizeEndpointUrl(options.baseUrl ?? API_BASE_URL)}/api/v1/verdict-public`;
     this.siteKey = options.publicKey.trim();
     if (!this.siteKey || /[\s\x00-\x1f\x7f]/.test(this.siteKey)) {
       throw new Error('A valid Public key is required to verify access.');

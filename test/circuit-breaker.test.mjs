@@ -107,7 +107,7 @@ test('tenant, normalized endpoint and credentials isolate circuits, never visito
   await assert.rejects(f.client().getVerdict('v1'));
   await assert.rejects(f.client().getVerdict('v2'), CircuitOpenError);
   await assert.rejects(f.client({apiKey: 'rotated'}).getVerdict('v'));
-  await assert.rejects(f.client({baseUrl: 'https://dev.hideguard.io'}).getVerdict('v'));
+  await assert.rejects(f.client({baseUrl: 'https://api-testing.example'}).getVerdict('v'));
   await assert.rejects(f.client({circuitBreaker: new SharedCircuitBreaker({store: f.store, scopeId: 'other'})}).getVerdict('v'));
   assert.equal(f.calls(), 4);
 });

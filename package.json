@@ -1,6 +1,6 @@
 {
   "name": "@hachitechs/hideguard",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Framework-independent HideGuard verdict client, verification and access lifecycle",
   "author": "Hachitechs",
   "repository": {
@@ -32,7 +32,9 @@
   "files": [
     "dist",
     "docs",
-    "src/verdict-policy.json"
+    "src/verdict-policy.json",
+    "scripts/config.mjs",
+    "src/api-url.ts"
   ],
   "sideEffects": false,
   "exports": {
@@ -51,7 +53,8 @@
     "test": "npm run build && node --test test/*.test.mjs",
     "test:integration": "npm run build && node --test test/integration/*.test.mjs",
     "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run test:integration"
+    "prepublishOnly": "npm test && npm run test:integration",
+    "config": "node scripts/config.mjs"
   },
   "engines": {
     "node": ">=22"
