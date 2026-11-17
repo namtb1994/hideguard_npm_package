@@ -1,7 +1,7 @@
 {
   "name": "@hachitechs/hideguard",
   "version": "0.9.0",
-  "description": "Framework-independent HideGuard verdict client, verification and access lifecycle",
+  "description": "JavaScript/TypeScript SDK for HideGuard bot protection, signed verdict verification, and checkout access control.",
   "author": "Hachitechs",
   "repository": {
     "type": "git",
@@ -13,9 +13,12 @@
   },
   "keywords": [
     "hideguard",
-    "verification",
-    "ed25519",
+    "bot-protection",
+    "bot-verification",
+    "checkout-protection",
     "access-control",
+    "ed25519",
+    "javascript",
     "typescript"
   ],
   "type": "module",
