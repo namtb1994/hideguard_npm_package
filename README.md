@@ -2,6 +2,8 @@
 
 Framework-independent JavaScript/TypeScript SDK for HideGuard bot verdict verification and checkout access control. Used by the **HideGuard Bot & Checkout Guard** Shopify app.
 
+Official website: [HideGuard](https://hideguard.io/)
+
 Includes an Ed25519 collect verifier, access lifecycle and browser UI. ESM + TypeScript declarations; Node 22+ or a server runtime supporting Web Crypto Ed25519, `fetch` and Web Streams. No production dependencies.
 
 ## Installation
