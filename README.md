@@ -1,24 +1,59 @@
-# HideGuard SDK — Bot Protection & Checkout Guard
+# HideGuard SDK: Bot Protection and Checkout Guard for JavaScript and TypeScript
 
-Framework-independent JavaScript/TypeScript SDK for HideGuard bot verdict verification and checkout access control. Used by the **HideGuard Bot & Checkout Guard** Shopify app.
+[![npm version](https://img.shields.io/npm/v/@hachitechs/hideguard.svg)](https://www.npmjs.com/package/@hachitechs/hideguard)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node.js >= 22](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)
+![TypeScript](https://img.shields.io/badge/types-TypeScript-3178c6.svg)
+![Zero dependencies](https://img.shields.io/badge/dependencies-0-success.svg)
 
-Official website: [HideGuard](https://hideguard.io/)
+**HideGuard SDK** (`@hachitechs/hideguard`) is a framework-independent JavaScript/TypeScript library for [HideGuard](https://hideguard.io/) bot detection. It verifies Ed25519-signed bot verdicts, enforces checkout access control on the server, and locks protected pages in the browser until a visitor is verified.
 
-Includes an Ed25519 collect verifier, access lifecycle and browser UI. ESM + TypeScript declarations; Node 22+ or a server runtime supporting Web Crypto Ed25519, `fetch` and Web Streams. No production dependencies.
+It powers the **HideGuard Bot & Checkout Guard** Shopify app. It also runs in any Node.js 22+ backend, or in an edge/server runtime that supports Web Crypto Ed25519, `fetch`, and Web Streams.
+
+## Features
+
+- **Signed verdict verification**: Ed25519 protocol v2 signatures for Collect and Verdict responses, with environment, freshness, and visitor checks.
+- **Server verdict client**: `VerdictClient` fetches fresh bot verdicts using your private API key, with timeouts and response size limits.
+- **Public verdict client**: `PublicVerdictClient` looks up signed verdicts from browsers or edge runtimes using a public site key.
+- **Checkout guard lifecycle**: `Guard` handles verification attempts, timed passes, resource (cart/checkout) binding, and per-action rechecks.
+- **Browser access runtime**: `createAccessRuntime` locks pages or inline checkout panels until the backend grants access.
+- **Shared verdict policy**: one JSON file maps upstream verdicts to the allow, challenge, and block groups.
+- **High-traffic options**: a shared circuit breaker, transactional stores, and expired-record cleanup.
+- **Lightweight**: ESM-only, TypeScript declarations included, no production dependencies.
+
+## Table of contents
+
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Entry points](#entry-points)
+- [Public verdict API](#public-verdict-api)
+- [Verdict policy](#verdict-policy)
+- [Server checkout guard lifecycle](#server-checkout-guard-lifecycle)
+- [Storage contract](#storage-contract)
+- [Browser access runtime](#browser-access-runtime)
+- [Error handling](#error-handling)
+- [API endpoint configuration](#api-endpoint-configuration)
+- [High-traffic backend options](#high-traffic-backend-options)
+- [Security notes](#security-notes)
+- [Development](#development)
 
 ## Installation
+
+```sh
+npm install @hachitechs/hideguard
+```
+
+You can also install straight from GitHub. Append `#<tag-or-commit-sha>` to pin a revision:
 
 ```sh
 npm install github:namtb1994/hideguard_npm_package
 ```
 
-GitHub installation uses this repository directly and does not require an npm registry release or ownership of the `@hachitechs` npm scope. If the repository is private, the installing account needs GitHub access.
-npm installs the build dependencies and runs `prepare` to generate the JavaScript and TypeScript declarations before installing the package. Git installations require Git, a Node version supported by the locked development dependencies (verified with Node 22.23.4), and npm lifecycle scripts enabled.
+A GitHub install runs `prepare` to build the JavaScript and TypeScript declarations. This needs Git, Node.js 22+, and npm lifecycle scripts enabled.
 
-For a fixed revision, append `#<commit-sha>` to the GitHub dependency. The installed package name remains `@hachitechs/hideguard`.
+## Quick start
 
-Use `@hachitechs/hideguard` on the server and `@hachitechs/hideguard/browser` for browser integrations.
-The package is ESM-only; use `import` or dynamic `import()`.
+### Verify a server-side bot verdict
 
 ```ts
 import { VerdictClient, verifyApiVerdict } from '@hachitechs/hideguard';
@@ -28,147 +63,27 @@ const client = new VerdictClient({
   apiKey: process.env.HIDEGUARD_API_KEY!,
   timeoutMs: 5000,
 });
-// Obtain this ID from trusted server state, never directly from a request body.
+
+// Read the visitor ID from trusted server state, never directly from a request body.
 const payload = await client.getVerdict(trustedVisitorId);
 const verdict = verifyApiVerdict(payload, trustedVisitorId);
 ```
 
-`VerdictClient` sends `POST /api/v1/verdict`, `x-api-key`, and JSON `{ visitorId }`. It rejects redirects, non-2xx responses, invalid/oversized JSON and timeouts. It returns the full JSON object/array; integer values outside JavaScript's safe range become strings. It never retries automatically or logs the response/API key. `ApiError.statusCode` is the HTTP status when available.
+`VerdictClient` sends `POST /api/v1/verdict` with an `x-api-key` header and a JSON `{ visitorId }` body. It rejects redirects, non-2xx responses, invalid or oversized JSON, and timeouts. It never retries automatically and never logs the response or the API key. Integers outside JavaScript's safe range are returned as strings.
 
-Use `verifyCollect(response, policy)` for browser SDK reports. It requires the current Ed25519 protocol v2 signature, public SPKI PEM key, matching environment and fresh timestamp. **Never pass a browser-supplied response to `verifyApiVerdict`**; that verifier is only for a response obtained directly by the authenticated server client. The current protocol has no browser nonce binding, so signature validity does not prove replay prevention across sessions.
-
-## Optional backend capabilities (0.8.0)
-
-Root exports now include `SharedCircuitBreaker`, `CircuitOpenError`, `TransactionalGuardStore`,
-`BatchCleanupStore` and `cleanupExpired`. Circuit and atomic Guard are **off by default**; existing clients,
-CAS stores, browser imports and signed bytes keep their contracts. No framework/database dependency is added.
-
-See [the upgrade guide](docs/HIGH-TRAFFIC-UPGRADE.md) for usage, request-budget costs, shared-worker guarantees,
-transaction/cleanup contracts and rollout. A package upgrade alone does not give a platform's store transactions.
-No verdict cache, automatic HTTP retry, session capacity gate or new replay protocol is introduced.
-
-## Mode defaults (since 0.7.0)
-
-`defaultEndpointUrl(environment)` is exported from both root and browser entries.
-All supported legacy environment arguments now return the deployment API origin. The default is `https://hideguard.io`. The source constant is `API_BASE_URL` in `src/api-url.ts`, exported from both root and browser entry points. Clients use it when `baseUrl` is omitted; explicit HTTPS `baseUrl` overrides remain supported.
-
-From the origin source checkout, configure a test API and rebuild with:
-
-```sh
-npm run config -- --url-api https://api-testing.example
-```
-
-Restore the production default with `npm run config -- --url-api https://hideguard.io`. This command changes the package source constant and builds the artifact. Application adapters may instead pass their own deployment URL, without changing the installed package. Environment values inside signed responses remain protocol fields and must still match the expected signing context.
-
-## Public verdict API (0.5.0)
-
-The package remains framework-independent. `PublicVerdictClient`, `verifySignedResponse` and
-`verifySignedEnvelope` are available from both the root and `@hachitechs/hideguard/browser`.
-No platform route, cart attribute, action name, storage implementation or framework import is part of these APIs.
-The browser entry excludes the private `VerdictClient` and server `Guard` exports. Runtime requirements are
-Node 22+ or Web Crypto Ed25519, fetch, AbortController, TextDecoder and Web Streams. DOM APIs are needed
-only when using `createAccessRuntime`, not for standalone public requests or verification.
+### Verify a browser Collect report
 
 ```ts
-import {PublicVerdictClient, verifySignedEnvelope} from '@hachitechs/hideguard/browser';
+import { verifyCollect } from '@hachitechs/hideguard';
 
-const client = new PublicVerdictClient({
-  baseUrl: 'https://hideguard.io',
-  publicKey: sitePublicKey,
-  timeoutMs: 8000,
-  maximumResponseBytes: 262144,
-  // transport: yourFetchTransport,
-});
-const proofs = await client.getVerdicts(visitorFromVerifiedState, {
-  publicKey: signaturePublicKeyPem,
-  environment: 'production',
-  maxAgeSeconds: 300,
-});
-// Every reply is verified, including signed Block; the adapter applies its policy.
-// A rejected reply or mismatched visitor rejects the entire lookup.
-const proof = proofs[0]!;
-await verifySignedEnvelope(proof.signedResponse, {
-  publicKey: signaturePublicKeyPem, environment: 'production',
-  maxAgeSeconds: 300, nowMs: Date.now(),
-});
+const verified = await verifyCollect(browserResponse, policy);
 ```
 
-The client posts `{visitorId}` to `/api/v1/verdict-public` with `x-site-key`. It omits credentials,
-rejects redirects, disables HTTP cache requests, never retries, bounds streamed bytes before parsing, and accepts
-one object or a list of 1–32 signed responses. All replies are checked with the **Verdict** label,
-configured signing key/environment, response-time freshness and requested visitor. The finite HTTP deadline
-also rejects transports/streams that ignore abort. An optional `onVerification` callback receives bounded
-request/key IDs, verdict, environment, signing time, response index and verification outcome; never keys,
-signatures, visitor IDs or raw bodies. Callback failures cannot change the access decision. The client itself
-never logs. API/network/JSON errors are sanitized; `ApiError.statusCode` retains the HTTP status when known.
+`verifyCollect` requires a valid Ed25519 protocol v2 signature, the public SPKI PEM key, a matching environment, and a fresh timestamp.
 
-`verifySignedResponse(payload, options, kind = 'collect')` selects exactly one of
-`hideguard-collect-ed25519-v2` or `hideguard-verdict-ed25519-v2`; failed signatures never retry another label.
-It returns `{visitorId, verdict, signedAt, signedResponse}`. The envelope contains the original signature header
-and exact canonical message. `verifySignedEnvelope` authenticates its label and bytes again. Neither uses unsigned
-`source` metadata. `verifyCollect` keeps its original server contract and is Collect-only; `verifyApiVerdict`
-remains exclusively for the private server client, never for public/browser responses.
+> **Never pass a browser-supplied response to `verifyApiVerdict`.** That verifier only accepts responses your authenticated server client fetched itself.
 
-`SignatureOptions.groupFor` optionally supplies a trusted application's verdict-group policy; unknown verdicts
-are rejected. Without it only allow/block/challenge are recognized. `allowExpiredBlock` is solely for rechecking
-an already accepted cached block while an adapter independently bounds its retention period. Public lookups
-never enable that exemption, including when supplied at runtime by JavaScript. `normalizeEndpointUrl` is also
-exported from the browser entry for adapters to share the HTTPS-origin validation.
-
-HideGuard enforces key–registered-domain restrictions upstream (owner-confirmed contract). The package
-sends the configured site key without inventing domain headers or CORS rules. This restriction and a valid
-signature do not themselves establish guest/resource/action binding, single-use proof or backend revocation.
-Adapters still own those authorization boundaries.
-
-## Shared verdict policy (0.6.0)
-
-Edit only `src/verdict-policy.json` to manage exact, case-sensitive verdict values for every adapter:
-
-```json
-{
-  "block": ["block"],
-  "challenge": ["challenge"],
-  "allow": ["allow"]
-}
-```
-
-Root and browser entries export frozen `BLOCK_VERDICTS`, `CHALLENGE_VERDICTS`, `ALLOW_VERDICTS`
-and `verdictGroupFor(value)`. Unknown values return undefined and verification rejects them. Values must be
-valid protocol tokens, unique across all groups, with 1–64 total values. Invalid policies fail before use.
-Build tools can read the same source through `@hachitechs/hideguard/verdict-policy.json`; compiled JavaScript,
-browser assets and any native-runtime constants are generated from it, never maintained separately.
-
-`verifyCollect` verifies the original signed verdict and returns its normalized group as `VerifiedVerdict.verdict`;
-`verifyApiVerdict` normalizes a trusted private server reply the same way. Guard therefore applies the shared
-policy to confirmation, reporting and business checks without hard-coded lists of upstream values. Signature and
-envelope APIs and PublicVerdictClient retain the original signed verdict; adapters classify it with
-`verdictGroupFor`. Existing allow/block/challenge behavior is unchanged. The optional trusted `groupFor` hook
-remains available for adapters needing an explicit custom policy.
-
-Changing a group is an authorization-policy change. Rebuild, version and distribute the same package version
-to each application, and rebuild/deploy generated native constants together. Copies in separate repositories
-do not update each other automatically. Installations keep their
-existing policy until the new application/package build is delivered.
-
-## Server lifecycle
-
-Create `new Guard(store)` with your framework's authenticated context `{ scopeId, actorId, browserId }` and a `ProtectionPolicy`. Resolve tenant and actor from your framework's authenticated identity. The opaque browser ID only selects a session scoped to that tenant and actor; it is never a credential or grant. Keep API keys and authoritative policy/signing-key configuration in backend storage.
-
-1. `preflight(context, policy)` reuses a timed pass or reserves a verification attempt with a fixed deadline. Set `{ retry: true }` after a failed attempt.
-2. Verify the SDK report with `verifyCollect`, then `report(context, policy, verified, verificationId)`. Call `fail` when verification fails.
-3. Verify resource ownership through your platform API before calling `bindGrant(context, policy, resourceId)`.
-4. Before **each** protected business action, call `beginResourceCheck`, request a fresh server verdict using `check.visitorId`, verify it, then call `completeResourceCheck`. Proceed only for an `allowed` result with the matching attempt ID. On transport/verification errors call `fail(check.context, policy, check.verificationId)` and deny the action.
-5. Call `consumeGrant` after a completed purchase. This cleanup does not replace synchronous validation before ordering.
-
-Allow and Challenge both grant access for compatibility with the existing Magento/Shopify integrations. Challenge is not proof that a CAPTCHA was completed. Backend checks do not extend the original pass expiry. Always mode collects afresh on page preflight and uses a bounded 5-minute internal grant for resource binding.
-
-## Storage contract
-
-Implement `GuardStore.read`, `insert` and `replace`. Reads must be strongly consistent; insert-if-absent and compare-and-swap by version must be atomic across workers. Return `false` only for confirmed contention and throw infrastructure errors. The package retries document contention at most eight times; adapters may enforce a tighter request budget.
-
-Records contain hashed keys, session state, resource bindings, actor/visitor block ledgers and rate counters. Treat these collections as privileged server state. Enforce expiry on reads and arrange physical cleanup in the adapter. A single-document CAS does not provide transactions across session, binding and block-ledger documents. Storage errors deny the current operation; the package does not promise exactly-once orders or absolute cross-session replay protection.
-
-## Browser integration
+### Protect a page in the browser
 
 ```ts
 import { createAccessRuntime } from '@hachitechs/hideguard/browser';
@@ -179,9 +94,108 @@ await runtime.start();
 runtime.destroy();
 ```
 
-The adapter implements the exported `AccessRequest` contract and returns server time, public configuration, a decision and the opaque browser token. Only this token is stored in sessionStorage. `lockPage: false` and `container` support an inline checkout panel; `onAllowed` can bind the platform's current purchase flow. The UI lock controls browser interaction and cannot prevent the platform from delivering HTML or replace backend authorization.
+## Entry points
 
-### Signed page mode (opt in, 0.2.0)
+The package is ESM-only. Load it with `import` or dynamic `import()`.
+
+| Import path | Use for | Main exports |
+| --- | --- | --- |
+| `@hachitechs/hideguard` | Server / backend | `VerdictClient`, `verifyApiVerdict`, `verifyCollect`, `Guard`, `PublicVerdictClient`, `verifySignedResponse`, `verifySignedEnvelope`, `SharedCircuitBreaker`, `cleanupExpired`, verdict policy helpers |
+| `@hachitechs/hideguard/browser` | Browser / storefront | `createAccessRuntime`, `parseBrowserConfiguration`, `verifyCollect`, `PublicVerdictClient`, `verifySignedResponse`, `verifySignedEnvelope`, `normalizeEndpointUrl`, `defaultEndpointUrl`, `API_BASE_URL`, verdict policy helpers |
+| `@hachitechs/hideguard/verdict-policy.json` | Build tools | The shared verdict policy source |
+
+The browser entry leaves out the private `VerdictClient`, `Guard`, stores, circuit breaker, and cleanup helpers. It needs DOM APIs only when you use `createAccessRuntime`.
+
+## Public verdict API
+
+Use `PublicVerdictClient` to fetch signed verdicts with a public site key, for example from a storefront or an edge function.
+
+```ts
+import { PublicVerdictClient, verifySignedEnvelope } from '@hachitechs/hideguard/browser';
+
+const client = new PublicVerdictClient({
+  baseUrl: 'https://hideguard.io',
+  publicKey: sitePublicKey,
+  timeoutMs: 8000,
+  maximumResponseBytes: 262144,
+});
+
+const proofs = await client.getVerdicts(visitorFromVerifiedState, {
+  publicKey: signaturePublicKeyPem,
+  environment: 'production',
+  maxAgeSeconds: 300,
+});
+
+// Every reply is verified, including a signed Block; your adapter applies its own policy.
+// A rejected reply or a mismatched visitor fails the whole lookup.
+await verifySignedEnvelope(proofs[0]!.signedResponse, {
+  publicKey: signaturePublicKeyPem,
+  environment: 'production',
+  maxAgeSeconds: 300,
+  nowMs: Date.now(),
+});
+```
+
+- The client posts `{ visitorId }` to `/api/v1/verdict-public` with an `x-site-key` header. It omits credentials, rejects redirects, bypasses the HTTP cache, never retries, and caps the number of bytes it streams before parsing.
+- It accepts either one signed object or a list of 1–32 signed responses. Each reply is checked against the configured signing key, the environment, freshness, and the requested visitor.
+- The optional `onVerification` callback receives request/key IDs, the verdict, the environment, the signing time, and the outcome. It never receives keys, signatures, visitor IDs, or raw bodies, and an error inside it cannot change the access decision.
+- `verifySignedResponse(payload, options, kind = 'collect')` checks exactly one signature label (`hideguard-collect-ed25519-v2` or `hideguard-verdict-ed25519-v2`). It returns `{ visitorId, verdict, signedAt, signedResponse }`. `verifySignedEnvelope` re-authenticates a stored envelope.
+- `SignatureOptions.groupFor` lets a trusted application supply its own verdict-group policy. `allowExpiredBlock` exists only for rechecking a block your adapter already accepted and cached. Public lookups never enable it.
+
+HideGuard ties each site key to its registered domains on the server side. A valid signature does not by itself prove guest, resource, or action binding, single use, or revocation. Your adapter still owns those authorization checks.
+
+## Verdict policy
+
+`src/verdict-policy.json` is the single source of exact, case-sensitive verdict values:
+
+```json
+{
+  "block": ["block"],
+  "challenge": ["challenge"],
+  "allow": ["allow"]
+}
+```
+
+- Both entries export the frozen `BLOCK_VERDICTS`, `CHALLENGE_VERDICTS`, and `ALLOW_VERDICTS` arrays and `verdictGroupFor(value)`. Unknown values return `undefined` and fail verification.
+- Values must be valid protocol tokens, unique across groups, with 1–64 values in total. An invalid policy fails before use.
+- `verifyCollect` and `verifyApiVerdict` return the normalized group in `VerifiedVerdict.verdict`. The signature/envelope APIs and `PublicVerdictClient` keep the original signed verdict; classify it with `verdictGroupFor`.
+
+Changing a group is an authorization-policy change. Rebuild and redeploy every application that uses the package.
+
+## Server checkout guard lifecycle
+
+Create `new Guard(store)`. Every call takes an authenticated context `{ scopeId, actorId, browserId }` and a `ProtectionPolicy`. Resolve the tenant and actor from your framework's authenticated identity. The opaque browser ID only selects a session; it is never a credential. Keep API keys, the policy, and the signing-key configuration in backend storage.
+
+1. **`preflight(context, policy)`** reuses a timed pass or reserves a verification attempt with a fixed deadline. Pass `{ retry: true }` after a failed attempt.
+2. **Verify the SDK report** with `verifyCollect`, then call `report(context, policy, verified, verificationId)`. If verification fails, call `fail` instead.
+3. **`bindGrant(context, policy, resourceId)`**: call this only after your platform API confirms the visitor owns the resource.
+4. **Before each protected business action**, call `beginResourceCheck`. Then request a fresh server verdict for `check.visitorId`, verify it, and call `completeResourceCheck`. Proceed only when the result is `allowed` and the attempt ID matches. On any transport or verification error, call `fail` and deny the action.
+5. **`consumeGrant`** cleans up after a completed purchase. It does not replace validation before the order is placed.
+
+Allow and Challenge both grant access. A Challenge result does not prove that a CAPTCHA was solved. Backend checks do not extend the original pass expiry. In Always mode, every page preflight collects a fresh report, and resource binding uses a bounded 5-minute internal grant.
+
+## Storage contract
+
+Implement `GuardStore` with three methods: `read`, `insert`, and `replace`.
+
+- Reads must be strongly consistent. Insert-if-absent and compare-and-swap by version must be atomic across workers.
+- Return `false` only for confirmed contention. Throw on infrastructure errors. The package retries contention at most eight times.
+- Records hold hashed keys, session state, resource bindings, block ledgers, and rate counters. Treat them as privileged server state, enforce expiry on reads, and schedule physical cleanup.
+- A storage error denies the current operation. A compare-and-swap on a single document is not a transaction across documents. For atomic multi-document updates, see [High-traffic backend options](#high-traffic-backend-options).
+
+## Browser access runtime
+
+Your adapter implements the exported `AccessRequest` contract. Each response returns the server time, the public configuration, a decision, and an opaque browser token. Only that token is stored, in `sessionStorage`.
+
+- `lockPage: false` together with `container` renders an inline checkout panel instead of locking the whole page.
+- `onAllowed` binds your platform's current purchase flow once access is granted.
+- `onVerificationStart` runs synchronously before every collection, recheck, resume, or BFCache restore. Use it to lock purchase controls. Unlock them only after `onAllowed` has finished.
+
+The UI lock controls browser interaction only. It does not replace backend authorization.
+
+### Signed page mode
+
+Signed mode is opt-in. It approves the page locally from a signed Collect response and then confirms with your backend.
 
 ```ts
 import { createAccessRuntime, parseBrowserConfiguration } from '@hachitechs/hideguard/browser';
@@ -197,23 +211,48 @@ await runtime.start();
 // Always destroy on unmount; pause/resume around route transitions.
 ```
 
-Supply `enabled`, `environment`, HTTPS-origin `endpointUrl`, SDK `publicKey`, Ed25519 SPKI PEM `signaturePublicKey`, `revision`, `protectedPoints`, `protectedPaths`, `recheckSeconds` and `blockSeconds` as public settings. These are public parameters, never authorization. They must not contain the API key or secret references. `shouldProtect` remains your framework's page-scope adapter.
+- **Public settings:** `enabled`, `environment`, an HTTPS-origin `endpointUrl`, the SDK `publicKey`, the Ed25519 SPKI PEM `signaturePublicKey`, `revision`, `protectedPoints`, `protectedPaths`, `recheckSeconds`, and `blockSeconds`. These settings are public and must never contain the API key or any secret. `shouldProtect` decides which pages are protected.
+- **Local check:** the runtime verifies the signed v2 fields, the environment, and the expiry before opening a page for `allow`. `block` stays locked, and `challenge` waits for the backend. Every start or resume collects a fresh report.
+- **Backend confirm:** the adapter receives a single `confirm` operation with `{ browserToken, response, revision, confirmationId }`. The server authenticates the tenant and actor, checks the revision, and calls `verifyCollect(response, policy)` and then `guard.confirm(context, policy, verified, confirmationId)`. Rate-limit this endpoint.
+- **Failures:** a backend refusal, a revision change, a signature failure, expiry, a timeout, or a transport error locks the page. The confirmation timeout defaults to 12 seconds (`confirmationTimeoutMs`, 1–35000 ms).
 
-This mode owns the SDK `collect()` Promise (the modern SDK returns the signed response). It verifies the actual signed v2 fields, environment and expiry locally before opening a page for `allow`. It does not trust a global `fpc:verdict` event from a previous route. Every start/resume collects afresh; recheck seconds bound signed-proof validity and the next expiry check. `block` stays locked; `challenge` waits for backend policy, retaining the existing server Allow policy without claiming CAPTCHA completion.
+`getState()` stays `null` during local approval. Only backend confirmation exposes an allowed grant and calls `onAllowed`. A page can be approved locally before the backend reports a stored block. If every interaction must wait for the backend's block state, use the default server mode.
 
-The adapter receives **one** `confirm` operation with `{ browserToken, response, revision, confirmationId }`, without a preceding `preflight`. The server must authenticate tenant/actor, load current policy, check revision, call `verifyCollect(response, policy)`, then `guard.confirm(context, policy, verified, confirmationId)`; rate-limit the endpoint and recheck revision before responding. Never pass an unverified browser object as a verified verdict. The confirmation ID correlates the operation; it does not authenticate the proof.
+## Error handling
 
-`getState()` stays `null` during local page approval. Only backend confirmation exposes an allowed grant and invokes `onAllowed`; resource ownership checks, binding, fresh server `/api/v1/verdict` and expiry remain mandatory for protected business actions. Local page approval may precede discovery of a persisted backend block; this is an explicit trade-off of signed page mode. Choose the default `server` mode when all page interaction must await fresh backend block state.
+- `ApiError`: an API, network, or JSON failure with a sanitized message. `statusCode` holds the HTTP status when one is known.
+- `CircuitOpenError`: the shared circuit breaker is open. Treat it as a refusal, never as permission to reuse an earlier Allow.
+- `GuardError`: a lifecycle refusal with a `reason`, for example `permission` or `contention`.
+- `ResourceVerificationError`: extends `GuardError`. Its `verificationStatus` is `required`, `pending`, `failed`, or `blocked`. You can show a waiting message for `required`/`pending`, but every status still refuses the business action.
 
-Backend refusal, revision change, local signature failure, expiry, timeout or transport error locks the page. Confirmation has a bounded 12-second default timeout (`confirmationTimeoutMs`, 1–35000 ms). Retry, pause, destroy and BFCache invalidate old SDK/HTTP callbacks. An optional `onLocalVerdict` callback can prefetch read-only platform data; it must not grant checkout access. Browser adapters may redirect after locking, but no block-page URL or Wix dependency is built into this package.
+## API endpoint configuration
 
-`onVerificationStart` is an optional synchronous lifecycle callback for adapters to lock purchase controls before collection/preflight or when access is suspended. It runs on rechecks, pause/resume, BFCache restoration and cross-tab inspection. Release purchase controls only after `onAllowed` completes resource binding and platform validation refresh; local signed page approval and `onState(allowed)` alone are insufficient.
+The default API origin is `https://hideguard.io`. It is exported as `API_BASE_URL` and returned by `defaultEndpointUrl()` from both entries. Clients fall back to it when `baseUrl` is omitted, and an explicit HTTPS `baseUrl` always overrides it.
 
-Migration from the previous workspace package: change imports/dependencies from `@hideguard/antidetect` to `@hachitechs/hideguard` and rebuild. Existing `createAccessRuntime({ request })` callers keep server mode; only callers explicitly setting `mode: 'signed'` use the new flow. The HTTP adapter must support `confirm` before enabling it.
+To build against a test API from a source checkout:
 
-## Standalone development and packaging
+```sh
+npm run config -- --url-api https://api-testing.example
+# Restore production
+npm run config -- --url-api https://hideguard.io
+```
 
-`ResourceVerificationError` extends `GuardError` with the existing `permission` reason and a `verificationStatus` of `required`, `pending`, `failed` or `blocked`. Adapters can show a waiting message for `required`/`pending` and an error for `failed`/`blocked`. Every case still refuses the business action; a waiting message is never permission to proceed. Storage/identity/transport failures remain errors, and optimistic concurrency failures retain the `contention` reason.
+The `environment` values inside signed responses are protocol fields. They must still match the signing context you expect.
+
+## High-traffic backend options
+
+The root entry also exports `SharedCircuitBreaker`, `CircuitOpenError`, `TransactionalGuardStore`, `BatchCleanupStore`, and `cleanupExpired`. The circuit breaker and atomic Guard transactions are off by default. See the [high-traffic upgrade guide](docs/HIGH-TRAFFIC-UPGRADE.md) for setup, request-budget costs, shared-worker guarantees, transaction and cleanup contracts, and rollout.
+
+The package has no verdict cache and no automatic HTTP retry.
+
+## Security notes
+
+- Keep the API key, the protection policy, and the signing keys on the server.
+- Verify every browser report with `verifyCollect` before you pass it to `Guard`. Never treat an unverified browser object as a verdict.
+- The current protocol does not bind a browser nonce. A valid signature does not prevent the same response from being replayed in another session.
+- The package does not guarantee exactly-once orders or absolute cross-session replay protection.
+
+## Development
 
 ```sh
 npm ci
@@ -223,21 +262,15 @@ npm run test:integration
 npm pack
 ```
 
-Build and test in this repository, then distribute the versioned npm package or tarball to each host application. Existing applications may keep a vendored workspace copy such as `file:packages/hachitechs-hideguard`; those copies do not update automatically. Avoid absolute external paths as production/build dependencies. A Shopify Node backend can supply its own store, authenticated identity, resource ownership and HTTP adapters. Shopify Functions remain a separate runtime and cannot directly execute this backend package.
+`npm install`, `npm ci`, a Git dependency install, and `npm pack` all build the package through `prepare`. `prepublishOnly` runs the unit tests and the native SQLite integration tests.
 
-`npm install`, `npm ci`, Git dependency installation and `npm pack` build the package through `prepare`. Registry publishing also runs the unit and native SQLite integration tests through `prepublishOnly`; development and release checks require a Node version supported by the locked development dependencies (verified with Node 22.23.4).
+Shopify Functions are a separate runtime and cannot run this backend package directly.
 
-## Optional npm registry publishing
+## Links
 
-GitHub installation works independently of npm registry publishing. The package is also configured for future public releases on `https://registry.npmjs.org/`.
-The publishing account must have access to the `@hachitechs` npm scope, and each release must use a version not already published.
-
-```sh
-npm publish --dry-run
-npm publish
-```
-
-The dry run validates the local release process without uploading a release; npm authentication and scope permissions must be checked separately.
+- Website: [hideguard.io](https://hideguard.io/)
+- npm: [@hachitechs/hideguard](https://www.npmjs.com/package/@hachitechs/hideguard)
+- Issues: [GitHub issues](https://github.com/namtb1994/hideguard_npm_package/issues)
 
 ## License
 

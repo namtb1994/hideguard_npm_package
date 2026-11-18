@@ -1,6 +1,6 @@
 {
   "name": "@hachitechs/hideguard",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "JavaScript/TypeScript SDK for HideGuard bot protection, signed verdict verification, and checkout access control.",
   "author": "Hachitechs",
   "repository": {
