@@ -43,14 +43,6 @@ It powers the **HideGuard Bot & Checkout Guard** Shopify app. It also runs in an
 npm install @hachitechs/hideguard
 ```
 
-You can also install straight from GitHub. Append `#<tag-or-commit-sha>` to pin a revision:
-
-```sh
-npm install github:namtb1994/hideguard_npm_package
-```
-
-A GitHub install runs `prepare` to build the JavaScript and TypeScript declarations. This needs Git, Node.js 22+, and npm lifecycle scripts enabled.
-
 ## Quick start
 
 ### Verify a server-side bot verdict
@@ -262,7 +254,7 @@ npm run test:integration
 npm pack
 ```
 
-`npm install`, `npm ci`, a Git dependency install, and `npm pack` all build the package through `prepare`. `prepublishOnly` runs the unit tests and the native SQLite integration tests.
+`npm install`, `npm ci`, and `npm pack` all build the package through `prepare`. `prepublishOnly` runs the unit tests and the native SQLite integration tests.
 
 Shopify Functions are a separate runtime and cannot run this backend package directly.
 
